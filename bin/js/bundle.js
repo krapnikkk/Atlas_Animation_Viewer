@@ -71,12 +71,12 @@ var polea = (() => {
           Laya.loader.load([
             { url: image, type: Laya.Loader.IMAGE }
           ], Laya.Handler.create(this, () => {
-            Laya.Loader.loadedMap[`blob:file:///${imageName}`] = Laya.Loader.textureMap[image];
+            Laya.Loader.loadedMap[`blob:${location.origin}/${imageName}`] = Laya.Loader.textureMap[image];
             let reader = new FileReader();
             reader.readAsText(atlas);
             reader.onload = (e) => {
               let json = JSON.parse(e.target.result);
-              json.meta.image = image.replace("blob:file:///", "");
+              json.meta.image = image.replace(`blob:${location.origin}/`, "");
               let blob = new Blob([JSON.stringify(json)], { type: atlas.type });
               let url = URL.createObjectURL(blob);
               Laya.loader.load([
