@@ -44,80 +44,130 @@ var polea = (() => {
   // src/FileParser.ts
   var FileParser = class {
     static parseFile(files) {
-      let atlas, image;
-      let imageName = "", hasImport = false;
-      let urls = [];
+      let fileCnt = 0;
+      console.log(files);
       for (let i = 0; i < files.length; i++) {
+        fileCnt++;
         let file = files[i];
         let name = file.name;
-        let type = file.type;
+        let nameArr = name.split(".");
+        nameArr.pop();
+        let fileName = nameArr.join(".");
+        if (typeof this.assetsMap[fileName] == "undefined") {
+          this.assetsMap[fileName] = Object.create({});
+        }
         let ext = Laya.Loader.getTypeFromUrl(name);
         if (ext == Laya.Loader.ATLAS || ext == Laya.Loader.JSON) {
-          atlas = file;
+          this.assetsMap[fileName]["atlas"] = file;
         } else if (ext == Laya.Loader.IMAGE) {
-          let blob = new Blob([file], { type });
-          let url = URL.createObjectURL(blob);
-          urls.push(url);
-          image = url;
-          imageName = name;
-        }
-      }
-      if (urls.length == 0 && !hasImport) {
-        alert("\u672A\u53D1\u73B0\u6709\u6548\u7684\u8D44\u6E90\u6587\u4EF6\uFF01");
-      } else {
-        if (!atlas || !image) {
-          alert("\u672A\u53D1\u73B0\u6709\u6548\u7684\u52A8\u753B\u56FE\u96C6\u6216\u63CF\u8FF0\u6587\u4EF6\uFF01");
+          this.assetsMap[fileName]["image"] = file;
         } else {
-          Laya.loader.load([
-            { url: image, type: Laya.Loader.IMAGE }
-          ], Laya.Handler.create(this, () => {
-            Laya.Loader.loadedMap[`blob:${location.origin}/${imageName}`] = Laya.Loader.textureMap[image];
-            let reader = new FileReader();
-            reader.readAsText(atlas);
-            reader.onload = (e) => {
-              let json = JSON.parse(e.target.result);
-              json.meta.image = image.replace(`blob:${location.origin}/`, "");
-              let blob = new Blob([JSON.stringify(json)], { type: atlas.type });
-              let url = URL.createObjectURL(blob);
-              Laya.loader.load([
-                { url, type: Laya.Loader.ATLAS }
-              ], Laya.Handler.create(this, () => {
-                EventDispatcher.event(Events.UPLOAD_SUCCESS, url);
-                URL.revokeObjectURL(url);
-                urls.forEach((url2) => {
-                  URL.revokeObjectURL(url2);
-                });
-              }));
-            };
-          }));
+          alert("\u53D1\u73B0\u65E0\u6548\u7684\u52A8\u753B\u56FE\u96C6\u6216\u63CF\u8FF0\u6587\u4EF6\uFF0C\u8BF7\u68C0\u67E5\u6587\u4EF6\u662F\u5426\u6709\u8BEF\uFF01");
         }
       }
+      if (fileCnt == 0 && fileCnt % 2 !== 0) {
+        alert("\u672A\u53D1\u73B0\u6709\u6548\u7684\u8D44\u6E90\u6587\u4EF6\u6216\u8005\u7F3A\u5C11\u6210\u5BF9\u7684\u8D44\u6E90\u6587\u4EF6\uFF01");
+      } else {
+        EventDispatcher.event(Events.UPLOAD_SUCCESS, this.assetsMap);
+      }
+    }
+    static handleFile(key) {
+      let assets = this.assetsMap[key];
+      let image = assets["image"];
+      let atlas = assets["atlas"];
+      let blob = new Blob([image], { type: image.type });
+      let imageUrl = URL.createObjectURL(blob);
+      Laya.loader.load([
+        { url: imageUrl, type: Laya.Loader.IMAGE }
+      ], Laya.Handler.create(this, () => {
+        Laya.Loader.loadedMap[`blob:${location.origin}/${image.name}`] = Laya.Loader.textureMap[imageUrl];
+        let reader = new FileReader();
+        reader.readAsText(atlas);
+        reader.onload = (e) => {
+          let json = JSON.parse(e.target.result);
+          json.meta.image = imageUrl.replace(`blob:${location.origin}/`, "");
+          let blob2 = new Blob([JSON.stringify(json)], { type: atlas.type });
+          let atlasUrl = URL.createObjectURL(blob2);
+          Laya.loader.load([
+            { url: atlasUrl, type: Laya.Loader.ATLAS }
+          ], Laya.Handler.create(this, () => {
+            EventDispatcher.event(Events.SHOW_VIEW, atlasUrl);
+            URL.revokeObjectURL(atlasUrl);
+            URL.revokeObjectURL(imageUrl);
+          }));
+        };
+      }));
+    }
+  };
+  FileParser.assetsMap = {};
+
+  // src/GViewerPanel.ts
+  var GViewerPanel = class extends fgui.GComponent {
+    constructor() {
+      super();
+    }
+    onConstruct() {
+      super.onConstruct();
+      this.init();
+    }
+    init() {
+      this.g_tips = this.getChild("g_tips");
+    }
+    onShowAnimations() {
+      this.g_tips.visible = false;
     }
   };
 
   // src/Viewer.ts
+  var options = {
+    fps: 12,
+    idx: 0
+  };
   var Viewer = class {
     constructor() {
       this.initView();
       this.bindEvent();
     }
     initView() {
-      this.view = fgui.UIPackage.createObject("Viewer", "Main");
-      fgui.GRoot.inst.addChild(this.view);
+      this.viewer = fgui.UIPackage.createObject("Viewer", "Main");
+      fgui.GRoot.inst.addChild(this.viewer);
       fgui.GRoot.inst.setSize(Laya.stage.width, Laya.stage.height);
       Laya.stage.addChild(fgui.GRoot.inst.displayObject);
       this.animation = Laya.Pool.getItemByClass("Animation", Laya.Animation);
-      this.view.displayObject.addChild(this.animation);
-      this.view.setSize(Laya.stage.width, Laya.stage.height);
+      this.viewer.displayObject.addChild(this.animation);
+      this.viewer.setSize(Laya.stage.width, Laya.stage.height);
+      this.initInspector();
+    }
+    initInspector() {
+      this.gui = new window["dat"].GUI({ name: "Inspector" });
+      let FPS = [12, 24, 30, 48, 60];
+      this.gui.add(options, "fps", FPS).name("\u5E27\u9891").onChange((val) => {
+        options.fps = val;
+        this.animation.interval = 1e3 / val;
+      });
+      this.filesFloder = this.gui.addFolder("Files");
     }
     bindEvent() {
-      EventDispatcher.on(Events.UPLOAD_SUCCESS, this, this.showAnimations);
+      EventDispatcher.on(Events.SHOW_VIEW, this, this.showAnimation);
+      EventDispatcher.on(Events.UPLOAD_SUCCESS, this, this.onLoaded);
     }
-    showAnimations(atlas) {
+    onLoaded(data) {
+      this.viewer.onShowAnimations();
+      if (this.filesFloder) {
+        this.gui.removeFolder(this.filesFloder);
+      }
+      this.filesFloder = this.gui.addFolder("Files");
+      this.filesFloder.add(options, "idx", Object.keys(data)).name("\u6587\u4EF6\u5217\u8868").onChange((val) => {
+        FileParser.handleFile(val);
+      });
+      FileParser.handleFile(Object.keys(data)[0]);
+      this.filesFloder.open();
+    }
+    showAnimation(atlas) {
       this.animation.loadAtlas(atlas, Laya.Handler.create(this, this.onAtlasLoaded));
     }
     onAtlasLoaded() {
-      this.animation.interval = 1e3 / 12;
+      this.animation.interval = 1e3 / options.fps;
       this.animation.play();
       let bounds = this.animation.getGraphicBounds();
       this.animation.pivot(bounds.width / 2, bounds.height / 2);
@@ -131,8 +181,12 @@ var polea = (() => {
       this.init();
     }
     init() {
+      this.initConfig();
       this.loadResource();
       this.initDropEvent();
+    }
+    initConfig() {
+      fgui.UIObjectFactory.setExtension("ui://Viewer/Main", GViewerPanel);
     }
     loadResource() {
       fgui.UIPackage.loadPackage("res/ui/Viewer", Laya.Handler.create(this, this.onResLoaded));

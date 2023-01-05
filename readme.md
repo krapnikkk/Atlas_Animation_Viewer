@@ -1,1 +1,0 @@
-[view online](https://krapnikkk.github.io/Atlas_Animation_Viewer/bin/)

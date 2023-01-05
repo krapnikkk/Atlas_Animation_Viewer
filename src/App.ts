@@ -1,4 +1,5 @@
 import FileParser from "./FileParser";
+import GViewerPanel from "./GViewerPanel";
 import Viewer from "./Viewer";
 
 export default class App{
@@ -8,8 +9,13 @@ export default class App{
     }
 
     init(){
+        this.initConfig();
         this.loadResource();
         this.initDropEvent();
+    }
+
+    initConfig(){
+        fgui.UIObjectFactory.setExtension("ui://Viewer/Main", GViewerPanel);
     }
 
     loadResource(){
